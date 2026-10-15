@@ -25,8 +25,10 @@
   const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   const reduced = () => window.matchMedia("(prefers-reduced-motion: reduce)").matches;
   function shuffle(a, seed) {
-    const r = a.slice(); let s = seed || 1;
-    for (let i = r.length - 1; i > 0; i--) { s = (s * 9301 + 49297) % 233280; const j = Math.floor((s / 233280) * (i + 1)); [r[i], r[j]] = [r[j], r[i]]; }
+    // mulberry32: small seeds still give well-spread orders (the old LCG kept short lists nearly unshuffled)
+    const r = a.slice(); let s = (seed || 1) >>> 0;
+    const rnd = () => { s = (s + 0x6d2b79f5) >>> 0; let t = s; t = Math.imul(t ^ (t >>> 15), t | 1); t ^= t + Math.imul(t ^ (t >>> 7), t | 61); return ((t ^ (t >>> 14)) >>> 0) / 4294967296; };
+    for (let i = r.length - 1; i > 0; i--) { const j = Math.floor(rnd() * (i + 1)); [r[i], r[j]] = [r[j], r[i]]; }
     return r;
   }
 
@@ -59,7 +61,7 @@
     { id: "M15", unit: "U5", title: "omp 的工具面", pre: ["M14"], goal: "解释 hashline 编辑；用好 LSP、ast_grep、eval 和内部 URL。" },
     { id: "M16", unit: "U5", title: "omp 的编排", pre: ["M15"], goal: "定义子代理并按角色路由模型；写 TTSR 规则。" },
     { id: "M17", unit: "U5", title: "选择与组合", pre: ["M16"], goal: "针对给定场景选 pi 或 omp，并给出理由。" },
-    { id: "CAP", unit: "U6", title: "毕业项目", pre: ["M17"], goal: "为一个真实工作流设计、交付并论证一套 harness。" },
+    { id: "CAP", unit: "U6", title: "配好你自己的 pi", pre: ["M17"], goal: "把课程里学的落到日常用的 pi 上。" },
   ];
   const MOD = Object.fromEntries(MODULES.map((m) => [m.id, m]));
 
@@ -252,88 +254,11 @@
 
   // ---------- widgets ----------
   const LETTERS = "ABCDEF";
-  /** Single-choice question. opts: [{t, ok, why?}] ; reveal: true shows verdict at once. */
-  /** Single-choice question. opts: [{t, ok, why?}]. reveal: show the verdict at once (and offer a retry).
-   *  The latest pick is stored in store[1][id]; a pick that was ever right is also kept in store[1]+"Ever"[id]. */
-  function choice({ id, store, kicker, q, opts, explain, reveal = true, onAnswer, cls = "predict panel", shuffleSeed }) {
-    const order = shuffleSeed ? shuffle(opts.map((_, i) => i), shuffleSeed) : opts.map((_, i) => i);
-    const saved = store ? Store.get(store[0], store[1], {})[id] : undefined;
-    const box = h("div", { class: cls });
-    const fb = h("div", { class: "feedback", hidden: true });
-    const btns = order.map((oi, k) => h("button", { class: "opt", "data-i": oi, onclick: () => pick(oi) }, h("span", { class: "l" }, LETTERS[k]), h("span", null, opts[oi].t)));
-    const reset = () => {
-      btns.forEach((b) => { b.disabled = false; b.setAttribute("aria-pressed", "false"); b.classList.remove("right", "wrong"); });
-      fb.hidden = true; fb.replaceChildren();
-    };
-    const paint = (oi) => {
-      btns.forEach((b) => { const i = +b.dataset.i; b.disabled = true; b.setAttribute("aria-pressed", i === oi ? "true" : "false");
-        if (reveal) { if (opts[i].ok) b.classList.add("right"); else if (i === oi) b.classList.add("wrong"); } });
-      if (reveal) {
-        const ok = !!opts[oi].ok;
-        fb.replaceChildren(h("span", { class: "verdict " + (ok ? "ok" : "no") }, ok ? "对。" : "不对。"), opts[oi].why || "", " ", explain || "", " ",
-          h("button", { class: "btn ghost", style: { padding: "1px 10px", fontSize: "15px", marginLeft: "4px" }, onclick: () => {
-            if (store) { const all = { ...Store.get(store[0], store[1], {}) }; delete all[id]; Store.set(store[0], store[1], all); }
-            reset(); btns[0].focus();
-          } }, "重新作答"));
-        fb.hidden = false;
-      } else {
-        const right = opts.findIndex((o) => o.ok), all = opts.every((o) => o.ok);
-        const showNow = h("button", { class: "btn ghost", style: { padding: "1px 10px", fontSize: "15px", marginLeft: "4px" }, onclick: () => {
-          btns.forEach((b) => { const i = +b.dataset.i; if (opts[i].ok) b.classList.add("right"); else if (i === oi) b.classList.add("wrong"); });
-          showNow.remove();
-          fb.prepend(h("span", { class: "verdict " + (opts[oi].ok ? "ok" : "no") }, opts[oi].ok ? "猜对了。" : "这次没猜中。"), "正确答案已标绿。为什么是它，就是本课接下来要讲的。 ");
-        } }, "现在揭晓");
-        const again = h("button", { class: "btn ghost", style: { padding: "1px 10px", fontSize: "15px", marginLeft: "4px" }, onclick: () => {
-          if (store) { const a = { ...Store.get(store[0], store[1], {}) }; delete a[id]; Store.set(store[0], store[1], a); }
-          reset(); btns[0].focus();
-        } }, "重新猜");
-        fb.replaceChildren(h("span", { class: "mute" }, all ? "已记下。这题没有标准答案，课末会请你回看自己的理由。" : "已记下你的猜测。答案和解释在本课最后一节「小结 · 回看你的预测」。"), ...(right >= 0 && !all ? [showNow] : []), again);
-        fb.hidden = false;
-      }
-    };
-    function pick(oi) {
-      if (store) {
-        const all = { ...Store.get(store[0], store[1], {}) }; all[id] = oi; Store.set(store[0], store[1], all);
-        if (opts[oi].ok) { const ev = { ...Store.get(store[0], store[1] + "Ever", {}) }; if (!ev[id]) { ev[id] = 1; Store.set(store[0], store[1] + "Ever", ev); } }
-      }
-      paint(oi); onAnswer && onAnswer(oi, !!opts[oi].ok);
-    }
-    const hint = reveal ? null : h("div", { class: "pred-hint" }, "预测题：这部分还没学，不知道答案很正常。凭直觉选一个就行——不计分，猜错也有用：带着问题读下去，记得更牢。");
-    box.append(...[h("div", { class: "q" }, kicker ? h("span", { class: "k" }, kicker) : null, q), hint, h("div", { class: "opts" }, btns), fb].filter(Boolean));
-    if (saved !== undefined && opts[saved]) paint(saved);
-    return box;
-  }
-
-  function copyBlock(text) {
-    const btn = h("button", { class: "btn copy" }, "复制");
-    const pre = h("pre", null, text);
-    btn.addEventListener("click", async () => {
-      try { await navigator.clipboard.writeText(text); btn.textContent = "已复制"; }
-      catch (e) { const r = document.createRange(); r.selectNodeContents(pre); const s = getSelection(); s.removeAllRanges(); s.addRange(r); btn.textContent = "已选中，按 Ctrl+C"; }
-      setTimeout(() => (btn.textContent = "复制"), 1800);
-    });
-    return h("div", { class: "cmd" }, pre, btn);
-  }
-
   function section(id, n, tag, title, ...kids) {
     return h("section", { class: "sec", id, "data-toc": tag }, h("div", { class: "sec-tag" }, h("span", { class: "n" }, "§" + n), tag), title ? h("h2", null, title) : null, ...kids);
   }
 
-  /** One line that says what the learner does in this section. */
-  function todo(text, read) {
-    return h("div", { class: "todo" + (read ? " read" : "") }, h("span", { class: "k" }, read ? "阅读" : "你要做"), h("span", null, text));
-  }
-  /** Clickable overview of a module's sections: number, type, title. */
-  function route(modId, items) {
-    const seen = Store.get(modId, "seen", {});
-    return h("nav", { class: "route", "aria-label": "本课路线" }, items.map(([id, n, ty, title]) => {
-      const cls = ty === "实验" || ty === "测验" ? "lab" : ty === "阅读" ? "rd" : "do";
-      return h("a", { href: "#" + modId, class: seen[id] ? "seen" : "", onclick: (e) => { e.preventDefault(); document.getElementById(id)?.scrollIntoView({ behavior: reduced() ? "auto" : "smooth" }); } },
-        h("span", { class: "n" }, "§" + n), h("span", null, title), h("span", { class: "ty " + cls }, ty));
-    }));
-  }
-
-  // ---------- shared module blocks: mastery quiz and recap ----------
+  // ---------- shared module blocks: quiz ----------
   /** Mastery quiz: all questions on one page, graded together, retry reshuffles. */
   function quizBlock(modId, QUIZ, onGraded, pass = 8) {
     const box = h("div", { class: "panel" });
@@ -345,8 +270,8 @@
     const N = QUIZ.length;
     const paintHead = (score) => {
       const s = Store.get(modId, "quiz", { best: 0, attempts: 0 });
-      head.replaceChildren(h("div", null, h("div", { style: { fontWeight: 600 } }, `${N} 题 · ${pass} 题及以上过关`), h("div", { class: "mute", style: { fontSize: "15px" } }, `已作答 ${Object.keys(picks).length} / ${N} · 历史最好 ${s.best} / ${N} · 第 ${s.attempts + 1} 次`)),
-        score != null ? h("div", { class: "quiz-score " + (score >= pass ? "pass" : "fail") }, score + " / " + N) : h("div", { style: { width: "160px" } }, h("div", { class: "meter" }, h("i", { style: { width: (Object.keys(picks).length / N) * 100 + "%" } }))));
+      head.replaceChildren(h("div", null, h("div", { style: { fontWeight: 600 } }, pass == null ? `${N} 题 · 全部选完再交卷，每题都有解释` : `${N} 题 · ${pass} 题及以上过关`), h("div", { class: "mute", style: { fontSize: "15px" } }, `已作答 ${Object.keys(picks).length} / ${N} · 历史最好 ${s.best} / ${N} · 第 ${s.attempts + 1} 次`)),
+        score != null ? h("div", { class: "quiz-score " + (score >= (pass == null ? N : pass) ? "pass" : "fail") }, score + " / " + N) : h("div", { style: { width: "160px" } }, h("div", { class: "meter" }, h("i", { style: { width: (Object.keys(picks).length / N) * 100 + "%" } }))));
     };
     function render() {
       list.replaceChildren(); picks = {};
@@ -378,42 +303,6 @@
     return box;
   }
 
-  /** Recap: pretest reveal, score cells, completion checklist, next module. Re-renders on store changes. */
-  function recapBlock(modId, { pre, quizMin = 8, next, extra }) {
-    const box = h("div");
-    const paint = () => {
-      const p = Store.get(modId, "pre", {});
-      const qz = Store.get(modId, "quiz", { best: 0 });
-      const lb = Store.get(modId, "lab", {});
-      const preRight = pre.filter((x) => x.opts[p[x.id]]?.ok).length;
-      const cells = [["课前预测", preRight + " / " + pre.length], ...(extra ? extra() : []), ["测验最好成绩", qz.best + " / 10"]];
-      box.replaceChildren(
-        h("h3", null, "回看你的预测"),
-        h("div", { class: "panel" }, pre.map((x) => {
-          const a = p[x.id], ok = x.opts[a]?.ok;
-          return h("div", { class: "mini-tr" }, h("div", { class: "row", style: { gridTemplateColumns: "28px minmax(0,1fr)" } },
-            h("span", { class: a == null ? "mute" : ok ? "r-harness" : "r-ctx", style: { fontWeight: 700 } }, a == null ? "—" : ok ? "✓" : "✗"),
-            h("span", null, h("span", { style: { fontFamily: "var(--f-body)", color: "var(--fg)" } }, x.q), h("br"),
-              h("span", { class: "mute" }, a == null ? "你没有预测。" : "你的预测：" + x.opts[a].t + "。"), " ", h("span", { class: "r-harness" }, "答案：" + x.opts.find((o) => o.ok).t + "。"))));
-        })),
-        h("div", { class: "recap-grid" }, cells.map(([k, v]) => h("div", { class: "panel recap-cell" }, h("div", { class: "k" }, k), h("div", { class: "v" }, v)))),
-        h("div", { class: "panel", style: { marginTop: "12px", padding: "14px 18px" } },
-          h("div", { style: { fontWeight: 600, marginBottom: "6px" } }, "本课练习情况（仅供参考，不决定是否完成）"),
-          h("ul", { class: "check-list", style: { margin: 0 } },
-            h("li", null, h("span", { class: lb.passed ? "ok" : "no" }, lb.passed ? "✓" : "○"), "§8 实验"),
-            h("li", null, h("span", { class: qz.best >= quizMin ? "ok" : "no" }, qz.best >= quizMin ? "✓" : "○"), "§9 测验 " + quizMin + " 题及以上")),
-          completeButton(modId)),
-        next ? h("div", { class: "panel next-card" },
-          h("div", null, h("div", { class: "mid" }, "下一课 · " + (next.id === "CAP" ? "毕业项目" : relabel(next.id))), h("div", { style: { font: "700 22px var(--f-body)", margin: "4px 0" } }, next.title),
-            h("div", { class: "dim", style: { fontSize: "16px" } }, next.text)),
-          h("button", { class: "btn lg outline", onclick: () => { location.hash = next.id; } }, "前往" + (next.id === "CAP" ? "毕业项目" : relabel(next.id)), h("span", { class: "arr", "aria-hidden": "true" }, "→"))) : null);
-    };
-    paint();
-    Store.listeners.add(paint);
-    box._cleanup = () => Store.listeners.delete(paint);
-    return box;
-  }
-
   // ---------- 手动完成按钮 ----------
   function completeButton(modId) {
     const done = status(modId) === "done";
@@ -421,6 +310,37 @@
       done ? h("span", { class: "r-harness", style: { fontWeight: 600 } }, "✓ 你已把本课标记为已完成。") : h("span", { class: "mute" }, "读完、练够了，就自己标记。"),
       h("button", { class: done ? "btn lg ghost" : "btn lg primary", onclick: () => { Store.set(modId, "complete", !done); renderRail(); if (row.isConnected) row.replaceWith(completeButton(modId)); } }, done ? "取消完成" : "标记为已完成"));
     return row;
+  }
+
+  // ---------- lesson blocks (v2): header, look-here line, how-to table, check, end ----------
+  /** Lesson header. intro: what problem the lesson solves, in plain words. learn: what you will know after it. */
+  function lessonHead(id, intro, learn) {
+    const m = MOD[id], u = UNITS.find((x) => x.id === m.unit);
+    return h("header", { class: "mhead" },
+      h("div", { class: "crumbs" }, "第 " + (+u.id.slice(1) + 1) + " 单元 · " + u.name),
+      h("h1", { class: "mtitle" }, h("span", { class: "mid" }, lessonName(id)), m.title),
+      h("div", { class: "intro" }, intro),
+      learn && learn.length ? h("div", { class: "learn" }, h("div", { class: "k" }, "读完这一课，你会知道"), h("ul", null, learn.map((x) => h("li", null, x)))) : null);
+  }
+  /** One line placed right above a demo: what to look at in it. */
+  function look(...kids) { return h("p", { class: "look" }, h("span", { class: "k" }, "看什么"), ...kids); }
+  /** How to do it in pi. rows: [[keys or command, what it does], ...]. */
+  function howto(title, rows, ...foot) {
+    return h("div", { class: "panel howto" },
+      h("div", { class: "panel-h" }, h("span", null, title)),
+      h("table", null, h("tbody", null, rows.map(([k, d]) => h("tr", null, h("td", { class: "hk" }, k), h("td", null, d))))),
+      foot.length ? h("div", { class: "howto-foot" }, ...foot) : null);
+  }
+  /** Lesson end: takeaways, the complete button, the next lesson. */
+  function endBlock(id, points, next) {
+    const nm = next && MOD[next.id];
+    return h("div", null,
+      h("div", { class: "panel takeaway" }, h("ol", null, points.map((p) => h("li", null, p)))),
+      h("div", { class: "panel end-done", style: { marginTop: "12px", padding: "6px 18px 14px" } }, completeButton(id)),
+      nm ? h("div", { class: "panel next-card" },
+        h("div", null, h("div", { class: "mid" }, nm.id === "CAP" ? "最后一页 · 毕业" : "下一课 · " + lessonName(nm.id)), h("div", { style: { font: "700 22px var(--f-body)", margin: "4px 0" } }, nm.title),
+          next.text ? h("div", { class: "dim", style: { fontSize: "16px" } }, next.text) : null),
+        h("button", { class: "btn lg outline", onclick: () => { location.hash = nm.id; } }, nm.id === "CAP" ? "前往毕业" : "前往" + lessonName(nm.id), h("span", { class: "arr", "aria-hidden": "true" }, "→"))) : null);
   }
 
   // ---------- section TOC + seen tracking ----------
@@ -506,5 +426,5 @@
     Store.init();
   }
 
-  window.Course = { h, $, $$, sleep, reduced, shuffle, MODULES, MOD, UNITS, TERMS, term, Store, choice, copyBlock, section, todo, route, quizBlock, recapBlock, register: (id, fn) => { BUILT[id] = fn; }, boot, completeButton, renderRail };
+  window.Course = { h, $, $$, sleep, reduced, shuffle, MODULES, MOD, UNITS, TERMS, term, Store, section, quizBlock, register: (id, fn) => { BUILT[id] = fn; }, boot, completeButton, renderRail, lessonHead, look, howto, endBlock };
 })();
