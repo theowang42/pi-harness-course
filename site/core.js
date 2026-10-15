@@ -34,6 +34,7 @@
 
   // ---------- course data ----------
   const UNITS = [
+    { id: "UP", name: "序章" },
     { id: "U0", name: "心智模型" },
     { id: "U1", name: "驾驭 pi" },
     { id: "U2", name: "配置" },
@@ -43,6 +44,7 @@
     { id: "U6", name: "毕业" },
   ];
   const MODULES = [
+    { id: "INTRO", unit: "UP", title: "pi 是什么，这门课讲什么", pre: [], goal: "知道 pi 是什么、怎么装，以及这门课的路线。" },
     { id: "M0", unit: "U0", title: "Harness 是什么", pre: [], goal: "画出 agent loop；区分模型、harness、工具、会话。" },
     { id: "M1", unit: "U0", title: "上下文是预算", pre: ["M0"], goal: "列出一次请求的全部组成；估算占用；算出何时触发压缩。" },
     { id: "M2", unit: "U1", title: "第一次会话", pre: ["M0"], goal: "用 @ 引文件；分清 ! 和 !!；在运行中插话或排队；中断。" },
@@ -212,7 +214,7 @@
       const body = h("div", { class: "unit-b", id: "ub-" + u.id, hidden: !open });
       units.append(h("button", { class: "unit-h", type: "button", "aria-expanded": String(open), "aria-controls": "ub-" + u.id,
         onclick: () => { railOpen.has(u.id) ? railOpen.delete(u.id) : railOpen.add(u.id); renderRail(); } },
-        h("span", null, "第 " + (+u.id.slice(1) + 1) + " 单元 · " + u.name),
+        h("span", null, unitLabel(u)),
         h("span", { class: "uc" }, mods.filter((m) => status(m.id) === "done").length + "/" + mods.length),
         h("span", { class: "chev", "aria-hidden": "true" })), body);
       for (const m of mods) {
@@ -317,7 +319,7 @@
   function lessonHead(id, intro, learn) {
     const m = MOD[id], u = UNITS.find((x) => x.id === m.unit);
     return h("header", { class: "mhead" },
-      h("div", { class: "crumbs" }, "第 " + (+u.id.slice(1) + 1) + " 单元 · " + u.name),
+      h("div", { class: "crumbs" }, unitLabel(u)),
       h("h1", { class: "mtitle" }, h("span", { class: "mid" }, lessonName(id)), m.title),
       h("div", { class: "intro" }, intro),
       learn && learn.length ? h("div", { class: "learn" }, h("div", { class: "k" }, "读完这一课，你会知道"), h("ul", null, learn.map((x) => h("li", null, x)))) : null);
@@ -366,7 +368,7 @@
   const Router = {
     cur: null, cleanup: null,
     go(id, keepScroll) {
-      if (!MOD[id]) id = "M0";
+      if (!MOD[id]) id = "INTRO";
       this.cleanup && this.cleanup(); this.cleanup = null;
       this.cur = id;
       const page = $("#page"); page.replaceChildren();
@@ -389,7 +391,8 @@
   // ---------- labels: 内部 ID M0–M17 显示为「第 1–18 课」 ----------
   const LBL_RE = /(^|[^A-Za-z0-9_$\-])M(1[0-7]|[0-9])(?![0-9A-Za-z])/g;
   const relabel = (s) => s.replace(LBL_RE, (_, p, n) => p + "第 " + (+n + 1) + " 课");
-  const lessonName = (id) => (id === "CAP" ? "★" : relabel(id));
+  const lessonName = (id) => (id === "CAP" ? "★" : id === "INTRO" ? "序章" : relabel(id));
+  const unitLabel = (u) => (u.id === "UP" ? u.name : "第 " + (+u.id.slice(1) + 1) + " 单元 · " + u.name);
   function relabelNode(n) {
     if (n.nodeType === 3) { const t = relabel(n.data); if (t !== n.data) n.data = t; return; }
     if (n.nodeType !== 1 || /^(TEXTAREA|INPUT|SCRIPT|STYLE)$/.test(n.tagName)) return;
@@ -421,7 +424,7 @@
     paintTheme();
     Store.listeners.add(renderRail);
     window.addEventListener("hashchange", () => Router.go(location.hash.slice(1)));
-    Router.go(location.hash.slice(1) || "M0");
+    Router.go(location.hash.slice(1) || "INTRO");
     renderSync();
     Store.init();
   }
