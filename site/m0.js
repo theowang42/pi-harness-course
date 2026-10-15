@@ -717,15 +717,15 @@ python3 test_calc.py`;
           h("div", { class: "panel recap-cell" }, h("div", { class: "k" }, "单步器预测"), h("div", { class: "v" }, stRight + " / " + Object.keys(STEP_PREDICT).length)),
           h("div", { class: "panel recap-cell" }, h("div", { class: "k" }, "测验最好成绩"), h("div", { class: "v", style: { color: qz.best >= 8 ? "var(--ok)" : "var(--fg)" } }, qz.best + " / 10"))),
         h("div", { class: "panel", style: { marginTop: "12px", padding: "14px 18px" } },
-          h("div", { style: { fontWeight: 600, marginBottom: "6px" } }, "完成 M0 需要两项"),
+          h("div", { style: { fontWeight: 600, marginBottom: "6px" } }, "本课练习情况（仅供参考，不决定是否完成）"),
           h("ul", { class: "check-list", style: { margin: 0 } },
-            h("li", null, h("span", { class: lb.passed ? "ok" : "no" }, lb.passed ? "✓" : "○"), "§8 实验通过"),
+            h("li", null, h("span", { class: lb.passed ? "ok" : "no" }, lb.passed ? "✓" : "○"), "§8 实验"),
             h("li", null, h("span", { class: qz.best >= 8 ? "ok" : "no" }, qz.best >= 8 ? "✓" : "○"), "§9 测验 8 题及以上")),
-          Store.get(ID, "done") ? h("p", { class: "r-harness", style: { margin: "8px 0 0", fontWeight: 600 } }, "M0 已完成。M1 的第一部分会抽查本课内容。") : null),
+          window.Course.completeButton(ID)),
         h("div", { class: "panel next-card" },
           h("div", null, h("div", { class: "mid" }, "下一课 · M1"), h("div", { style: { font: "700 22px var(--f-body)", margin: "4px 0" } }, "上下文是预算"),
             h("div", { class: "dim", style: { fontSize: "16px" } }, "你已经看到上下文每轮增长。M1 回答：增长到哪里会出事？请求里每一块各占多少？pi 何时自动压缩？")),
-          h("button", { class: "btn primary", onclick: () => { location.hash = "M1"; } }, "前往 M1")));
+          h("button", { class: "btn lg outline", onclick: () => { location.hash = "M1"; } }, "前往 M1", h("span", { class: "arr", "aria-hidden": "true" }, "→"))));
     };
     paint();
     Store.listeners.add(paint);
