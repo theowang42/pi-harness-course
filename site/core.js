@@ -263,13 +263,13 @@
   function quizBlock(modId, QUIZ, onGraded, pass = 8) {
     const box = h("div", { class: "panel" });
     let picks = {};
-    let seed = (Store.get(modId, "quiz", { attempts: 0 }).attempts || 0) + 7;
+    let seed = (Store.get(modId, "check", { attempts: 0 }).attempts || 0) + 7;
     const head = h("div", { class: "quiz-head" });
     const list = h("div");
     const submit = h("button", { class: "btn primary", disabled: true }, "交卷");
     const N = QUIZ.length;
     const paintHead = (score) => {
-      const s = Store.get(modId, "quiz", { best: 0, attempts: 0 });
+      const s = Store.get(modId, "check", { best: 0, attempts: 0 });
       head.replaceChildren(h("div", null, h("div", { style: { fontWeight: 600 } }, pass == null ? `${N} 题 · 全部选完再交卷，每题都有解释` : `${N} 题 · ${pass} 题及以上过关`), h("div", { class: "mute", style: { fontSize: "15px" } }, `已作答 ${Object.keys(picks).length} / ${N} · 历史最好 ${s.best} / ${N} · 第 ${s.attempts + 1} 次`)),
         score != null ? h("div", { class: "quiz-score " + (score >= (pass == null ? N : pass) ? "pass" : "fail") }, score + " / " + N) : h("div", { style: { width: "160px" } }, h("div", { class: "meter" }, h("i", { style: { width: (Object.keys(picks).length / N) * 100 + "%" } }))));
     };
@@ -291,8 +291,8 @@
     }
     function grade() {
       let score = 0; [...list.children].forEach((c) => { if (c._grade()) score++; });
-      const s = Store.get(modId, "quiz", { best: 0, attempts: 0 });
-      Store.set(modId, "quiz", { best: Math.max(s.best, score), attempts: s.attempts + 1, last: score });
+      const s = Store.get(modId, "check", { best: 0, attempts: 0 });
+      Store.set(modId, "check", { best: Math.max(s.best, score), attempts: s.attempts + 1, last: score });
       paintHead(score);
       submit.disabled = false; submit.textContent = "换个顺序再做一次"; submit.onclick = () => { seed++; render(); box.scrollIntoView({ behavior: reduced() ? "auto" : "smooth" }); };
       onGraded && onGraded(score);
