@@ -997,14 +997,15 @@ code, kbd { font-size: max(15px, .86em) !important; }
 }
 @media (min-width: 1760px) { :root { --bench: 1100px; } }
 
-/* theme toggle: top-right corner */
+/* theme toggle: top-right corner of the rail's brand block */
+.brand { position: relative; }
+.brand-mark { padding-right: 44px; }
 .theme-btn {
-  position: absolute; top: 14px; right: 18px; z-index: 30; width: 38px; height: 38px; display: grid; place-items: center;
+  position: absolute; top: -4px; right: 14px; width: 34px; height: 34px; display: grid; place-items: center;
   border: 1px solid var(--line-2); border-radius: 50%; background: var(--panel); color: var(--fg-dim); cursor: pointer;
 }
 .theme-btn:hover { color: var(--fg); border-color: var(--fg-mute); }
-.theme-btn svg { width: 18px; height: 18px; }
-@media (max-width: 860px) { .theme-btn { position: absolute; } }
+.theme-btn svg { width: 17px; height: 17px; }
 
 /* ---------- lesson blocks v2 ---------- */
 .intro { margin-top: 20px; }
